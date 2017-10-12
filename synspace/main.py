@@ -71,20 +71,24 @@ def main(args):
 def load_dataset(self, which_dataset='train', load_column_vecs=False):
     file_name = 'word_synonym_antonym.' + which_dataset
     file_path = os.path.join('data', self.conf['dataset_name'], file_name)
-    triples = pickle.load(open(file_path, 'rb'))
 
-    words_vec    = torch.Tensor([self.nlp.vocab[i[0]].vector for i in triples])
-    synonyms_vec = torch.Tensor([self.nlp.vocab[i[1]].vector for i in triples])
-    antonyms_vec = torch.Tensor([self.nlp.vocab[i[2]].vector for i in triples])
+    #triples = pickle.load(open(file_path, 'rb'))
+    # words_vec    = torch.Tensor([self.nlp.vocab[i[0]].vector for i in triples])
+    # synonyms_vec = torch.Tensor([self.nlp.vocab[i[1]].vector for i in triples])
+    # antonyms_vec = torch.Tensor([self.nlp.vocab[i[2]].vector for i in triples])
+    #
+    # if load_column_vecs:
+    #     words_vec    = words_vec.unqueeze(1)
+    #     synonyms_vec = synonyms_vec.unqueeze(1)
+    #     antonyms_vec = antonyms_vec.unqueeze(1)
+    #
+    # words    = torch.from_numpy(np.array([i[0] for i in triples]))
+    # synonyms = torch.from_numpy(np.array([i[1] for i in triples]))
+    # antonyms = torch.from_numpy(np.array([i[2] for i in triples]))
 
-    if load_column_vecs:
-        words_vec    = words_vec.unqueeze(1)
-        synonyms_vec = synonyms_vec.unqueeze(1)
-        antonyms_vec = antonyms_vec.unqueeze(1)
-
-    words    = torch.from_numpy(np.array([i[0] for i in triples]))
-    synonyms = torch.from_numpy(np.array([i[1] for i in triples]))
-    antonyms = torch.from_numpy(np.array([i[2] for i in triples]))
+    dataset = SynonymsAntonyms(file_path)
+    dataloader = DataLoader(dataset, batch_size=64,
+                        shuffle=True, num_workers=4)
 
     return words_vec, synonyms_vec, antonyms_vec, words, synonyms, antonyms
 
