@@ -181,17 +181,24 @@ def get_antonyms(remove_duplicates=False):
 #
 #    return embeddings
 
+def split_triples(triples, split=0.3):
+    # Casting to integer a value+0.5 will round to the closest integer
+    split_index = int(len(triples) * split + 0.5)
+    train, test = triples[:-split_index], triples[-split_index:]
+    return train, test
+
+
 def generate_dataset(force_antonyms=False, remove_duplicates=True, prefix=''):
     nlp = spacy.load('en')
 
     triples = get_triples(nlp, force_antonyms, remove_duplicates)
-    train, test = triples[:-30485], triples[-30485:]
+    train, test = split_triples(triples)
 
     if not os.path.exists(prefix):
         os.makedirs(prefix)
 
-    pickle.dump(train, open(os.path.join(prefix, 'word_synonym_antonym.train'), 'wb'))
-    pickle.dump(test,  open(os.path.join(prefix, 'word_synonym_antonym.test'),  'wb'))
+    pickle.dump(train, open(os.path.join(prefix, 'train.pkl'), 'wb'))
+    pickle.dump(test,  open(os.path.join(prefix, 'test.pkl'),  'wb'))
 
     #all_words = get_all_words(train)
     #embeddings = initialize_word_embeddings(all_words)

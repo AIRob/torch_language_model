@@ -27,10 +27,19 @@ def main(args):
 
     # Call vocabulary functions
     dir_name = os.path.dirname(in_txt)
-    synspace.vocabulary_utils.new_vocabulary([in_txt], dir_name, 1, 'spacy',
-                False, 1000000, 'word_triples',
-                lambda line: " ".join(line.split('\t')))
+    synspace.vocabulary_utils.new_vocabulary([in_txt], dir_name, 0, 'split',
+                False, None, 'word_triples',
+                lambda line: " ".join(line.split('\t'))[:-1])
+
+    # After the files have been created, I can call
+    #     w2i, i2w = synspace.vocabulary_utils.load_vocabulary(vocab_path)
+    # to load the vocabulary, and I can call
+    #     w2v = reload_w2v(w2i)
+    # to initialize a new `w2v` object. This is what I want to use to initialize
+    # my Embedding layer.
+
 
 if __name__ == '__main__':
     args = parse_args()
     main(args)
+

@@ -339,7 +339,7 @@ def vocabulary_builder(data_paths, min_frequency=5, tokenizer='spacy',
             bar.update(n_line)
         bar.finish()
 
-    print("Found %d unique tokens in the vocabulary.", len(cnt))
+    print("Found {} unique tokens in the vocabulary.".format(len(cnt)))
 
     # Filter tokens below the frequency threshold
     if min_frequency > 0:
@@ -347,8 +347,8 @@ def vocabulary_builder(data_paths, min_frequency=5, tokenizer='spacy',
                            if c > min_frequency]
         cnt = collections.Counter(dict(filtered_tokens))
 
-    print("Found %d unique tokens with frequency > %d.",
-          len(cnt), min_frequency)
+    print("Found {} unique tokens with frequency > {}.".format(
+          len(cnt), min_frequency))
 
     # Sort tokens by 1. frequency 2. lexically to break ties
     vocab = cnt.most_common()
