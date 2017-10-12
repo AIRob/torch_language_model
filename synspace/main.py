@@ -14,59 +14,16 @@ import spacy
 
 import os
 import sys
-import pickle
 import numpy as np
 
-
 from model import LanguageModel
+
 
 def log(x):
     print(x)
 
 def get_time(self):
     return strftime('%Y-%m-%d %H:%M:%S', gmtime())
-
-def parse_args():
-    parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
-    parser.add_argument('--batch_size', type=int, default=128, metavar='N',
-                        help='input batch size for training (default: 128)')
-    parser.add_argument('--nb_epoch', type=int, default=10, metavar='N',
-                        help='number of epochs to train (default: 10)')
-    parser.add_argument('--no-cuda', action='store_true', default=False,
-                        help='enables CUDA training')
-    parser.add_argument('--seed', type=int, default=1, metavar='S',
-                        help='random seed (default: 1)')
-    parser.add_argument('--language', type=str, default='en',
-                        help='Language code to be used. Default: "en";'
-                             ' Accepted: "en", "de".')
-    parser.add_argument('--validation_split', type=float, default=1,
-                        help='how much of the training set should be used for '
-                             'validation')
-    args = parser.parse_args()
-    args.cuda = not args.no_cuda and torch.cuda.is_available()
-    return args
-
-
-def main(args):
-    # Initializes the random seed
-    torch.manual_seed(args.seed)
-    if args.cuda:
-        torch.cuda.manual_seed(args.seed)
-
-    # "Builds" the model and sends it to the GPU
-    model = LanguageModel()
-    if args.cuda:
-        model.cuda()
-
-    # Initializes spaCy
-    nlp = spacy.load(args.language)
-
-    # Defines a new optimizer
-    optimizer = optim.Adam(model.parameters(), lr=1e-3)
-
-    # Run
-    train(model, optimizer, args, nlp)
-    test(model, optimizer, args, nlp)
 
 def load_dataset(self, which_dataset='train', load_column_vecs=False):
     file_name = 'word_synonym_antonym.' + which_dataset
@@ -163,3 +120,50 @@ def test(model, optimizer, nlp, args):
 
     test_loss /= len(test_loader.dataset)
     print('====> Test set loss: {:.4f}'.format(test_loss))
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='PyTorch language model')
+    parser.add_argument('--batch_size', type=int, default=128, metavar='N',
+                        help='input batch size for training (default: 128)')
+    parser.add_argument('--nb_epoch', type=int, default=10, metavar='N',
+                        help='number of epochs to train (default: 10)')
+    parser.add_argument('--no-cuda', action='store_true', default=False,
+                        help='enables CUDA training')
+    parser.add_argument('--seed', type=int, default=1, metavar='S',
+                        help='random seed (default: 1)')
+    parser.add_argument('--language', type=str, default='en',
+                        help='Language code to be used. Default: "en";'
+                             ' Accepted: "en", "de".')
+    parser.add_argument('--validation_split', type=float, default=1,
+                        help='how much of the training set should be used for '
+                             'validation')
+    args = parser.parse_args()
+    args.cuda = not args.no_cuda and torch.cuda.is_available()
+    return args
+
+
+def main(args):
+    # Initializes the random seed
+    torch.manual_seed(args.seed)
+    if args.cuda:
+        torch.cuda.manual_seed(args.seed)
+
+    # "Builds" the model and sends it to the GPU
+    model = LanguageModel()
+    if args.cuda:
+        model.cuda()
+
+    # Initializes spaCy
+    nlp = spacy.load(args.language)
+
+    # Defines a new optimizer
+    optimizer = optim.Adam(model.parameters(), lr=1e-3)
+
+    # Run
+    train(model, optimizer, args, nlp)
+    test(model, optimizer, args, nlp)
+
+
+if __name__ == '__main__':
+    args = parse_args()
+    main(args)

@@ -529,4 +529,3 @@ def paths_exist(paths_list):
             return False
     return True
 
-
