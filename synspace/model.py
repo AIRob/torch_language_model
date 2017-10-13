@@ -23,18 +23,17 @@ class LanguageModel(nn.Module):
         self.fc2 = nn.Linear(128, 128)
         self.fc3 = nn.Linear(128, 128)
 
-    def sentence_forward(self, x):
-        x = self.embedding(x)
-        return x
-
     def forward(self, x):
-        # Separate `x` into 3 distinct sentences
-        target_word, synonym, antonym = x
+        target_word = x['target_word']
+        synonym = x['synonym']
+        antonym = x['antonym']
 
         # Run the rest of the network in each one of them
-        target_word = self.sentence_forward(target_word)
-        synonym = self.sentence_forward(synonym)
-        antonym = self.sentence_forward(antonym)
+        target_word = self.embedding(target_word)
+        synonym = self.embedding(synonym)
+        antonym = self.embedding(antonym)
+
+        # Probably something more complicated...
 
         # Mix them all together back again
         return (target_word, synonym, antonym)
@@ -50,9 +49,3 @@ class LanguageModel(nn.Module):
         # x = self.fc3(x)
         return x
 
-    # def num_flat_features(self, x):
-    #     size = x.size()[1:]  # all dimensions except the batch dimension
-    #     num_features = 1
-    #     for s in size:
-    #         num_features *= s
-    #     return num_features

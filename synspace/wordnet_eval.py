@@ -7,6 +7,8 @@ import random
 import sys
 import os
 
+from synspace import split_triples
+
 glove_vec_size = 300
 
 def get_random_word(nlp):
@@ -180,12 +182,6 @@ def get_antonyms(remove_duplicates=False):
 #        embeddings[idx] = word_vec
 #
 #    return embeddings
-
-def split_triples(triples, split=0.3):
-    # Casting to integer a value+0.5 will round to the closest integer
-    split_index = int(len(triples) * split + 0.5)
-    train, test = triples[:-split_index], triples[-split_index:]
-    return train, test
 
 
 def generate_dataset(force_antonyms=False, remove_duplicates=True, prefix=''):
