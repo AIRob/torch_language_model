@@ -49,10 +49,12 @@ class WordnetTriples(Dataset):
         return sample
 
 def get_triples_loader(input_file, vocab_path,
-                       batch_size, shuffle, num_workers=4):
+                       batch_size, shuffle,
+                       num_workers=4,
+                       validation_split=0.05):
     raw_triples = pickle.load(open(input_file, "rb"))
 
-    train_triples, val_triples = split_triples(raw_triples, 0.05)
+    train_triples, val_triples = split_triples(raw_triples, validation_split)
 
     train_dataset = WordnetTriples(train_triples, vocab_path, ToTensor())
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size,
@@ -79,16 +81,12 @@ def main(args):
                                             batch_size=4, shuffle=True)
 
     for i_batch, sample_batched in enumerate(train_dl):
-        # print(i_batch, sample_batched['target_word'].size(),
-        #       sample_batched['synonym'].size(), sample_batched['antonym'].size())
-
         print(i_batch, sample_batched[0].size(),
               sample_batched[1].size(), sample_batched[2].size())
 
     # for i in range(10):
     #     s = dataset[i]
-    #     print(i, 'tw: ', s['target_word'],
-    #           'syn: ', s['synonym'], 'ant: ', s['antonym'])
+    #     print(i, 'tw: ', s[0], 'syn: ', s[1], 'ant: ', s[2])
 
 
 if __name__ == '__main__':

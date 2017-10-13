@@ -7,14 +7,16 @@ import numpy as np
 
 class LanguageModel(nn.Module):
 
-    def __init__(self):
+    def __init__(self, w2i, i2w, w2v):
         super(LanguageModel, self).__init__()
+        self.w2i = w2i
+        self.i2w = i2w
 
         # Set the embedding layer
-        self.embedding = nn.Embedding(self.config['n_words'], 300)
+        self.embedding = nn.Embedding(len(w2i), 300)
 
         # Initialize the embedding weights
-        weights = np.load(self.config['initial_embed_weights'])
+        weights = np.load(w2v)
 
         # embedding.weight is of size N_Embeddings x Embeddings_dim
         self.embedding.weight = weights
