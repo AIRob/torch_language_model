@@ -15,20 +15,18 @@ class LanguageModel(nn.Module):
         # Set the embedding layer
         self.embedding = nn.Embedding(len(w2i), 300)
 
-        # Initialize the embedding weights
-        weights = np.load(w2v)
+        # `embedding.weight` is of size N_Embeddings x Embeddings_dim
+        self.embedding.weight = nn.Parameter(torch.from_numpy(w2v))
 
-        # embedding.weight is of size N_Embeddings x Embeddings_dim
-        self.embedding.weight = weights
+        # Freezes the weights of the embedding layer
+        #self.embedding.weight.requires_grad = False
 
-        self.fc1 = nn.Linear(128, 128)
-        self.fc2 = nn.Linear(128, 128)
-        self.fc3 = nn.Linear(128, 128)
+        # self.fc1 = nn.Linear(128, 128)
+        # self.fc2 = nn.Linear(128, 128)
+        # self.fc3 = nn.Linear(128, 128)
 
     def forward(self, x):
-        target_word = x['target_word']
-        synonym = x['synonym']
-        antonym = x['antonym']
+        target_word, synonym, antonym = x
 
         # Run the rest of the network in each one of them
         target_word = self.embedding(target_word)
@@ -40,7 +38,6 @@ class LanguageModel(nn.Module):
         # Mix them all together back again
         return (target_word, synonym, antonym)
 
-
         # # Max pooling over a (2, 2) window
         # x = F.max_pool2d(F.relu(self.conv1(x)), (2, 2))
         # # If the size is a square you can only specify a single number
@@ -49,5 +46,5 @@ class LanguageModel(nn.Module):
         # x = F.relu(self.fc1(x))
         # x = F.relu(self.fc2(x))
         # x = self.fc3(x)
-        return x
+        # return x
 

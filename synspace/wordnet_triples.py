@@ -1,5 +1,6 @@
 import argparse
 import pickle
+import os
 
 import torch
 from torch.utils.data import Dataset, DataLoader
@@ -15,16 +16,15 @@ class ToTensor():
         # return {'target_word': torch.Tensor([sample['target_word']]),
         #         'synonym': torch.Tensor([sample['synonym']]),
         #         'antonym': torch.Tensor([sample['antonym']]) }
-        return (torch.Tensor([sample[0]]),
-                torch.Tensor([sample[1]]),
-                torch.Tensor([sample[2]]))
+        return (torch.LongTensor([sample[0]]),
+                torch.LongTensor([sample[1]]),
+                torch.LongTensor([sample[2]]))
 
 
 class WordnetTriples(Dataset):
-    def __init__(self, raw_triples, vocab_path, transform=None):
+    def __init__(self, raw_triples, w2i, i2w, transform=None):
         self.word_triples = raw_triples
-        self.w2i, self.i2w = load_vocabulary(vocab_path)
-
+        self.w2i, self.i2w = w2i, i2w
         self.transform = transform
 
     def __len__(self):
@@ -48,37 +48,48 @@ class WordnetTriples(Dataset):
 
         return sample
 
-def get_triples_loader(input_file, vocab_path,
+def get_triples_loader(dataset_path, w2i, i2w,
                        batch_size, shuffle,
                        num_workers=4,
                        validation_split=0.05):
-    raw_triples = pickle.load(open(input_file, "rb"))
+    train_file = os.path.join(dataset_path, 'train.pkl')
+    test_file  = os.path.join(dataset_path, 'test.pkl')
+    vocab_file = os.path.join(dataset_path, 'vocab.txt')
 
-    train_triples, val_triples = split_triples(raw_triples, validation_split)
+    train_and_val_triples = pickle.load(open(train_file, 'rb'))
 
-    train_dataset = WordnetTriples(train_triples, vocab_path, ToTensor())
+    train_triples, val_triples = split_triples(train_and_val_triples,
+                                               validation_split)
+
+    train_dataset = WordnetTriples(train_triples, w2i, i2w, ToTensor())
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size,
                                   shuffle=shuffle, num_workers=num_workers)
 
-    val_dataset = WordnetTriples(val_triples, vocab_path, ToTensor())
+    val_dataset = WordnetTriples(val_triples, w2i, i2w, ToTensor())
     val_dataloader = DataLoader(val_dataset, batch_size=batch_size,
                       shuffle=shuffle, num_workers=num_workers)
 
-    return train_dataloader, val_dataloader
+    test_triples = pickle.load(open(test_file, 'rb'))
+    test_dataset = WordnetTriples(test_triples, w2i, i2w, ToTensor())
+    test_dataloader = DataLoader(test_dataset, batch_size=batch_size,
+                      shuffle=False, num_workers=num_workers)
+
+    return train_dataloader, val_dataloader, test_dataloader
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description='PyTorch language model')
-    parser.add_argument('input_file', type=str,
-                        help='')
-    parser.add_argument('vocab_path', type=str,
+    parser.add_argument('dataset_path', type=str,
                         help='')
     return parser.parse_args()
 
 
 def main(args):
-    train_dl, val_dl = get_triples_loader(args.input_file, args.vocab_path,
-                                            batch_size=4, shuffle=True)
+    vocab_path = os.path.join(args.dataset_path, 'vocab.txt')
+    w2i, i2w = load_vocabulary(vocab_path)
+
+    train_dl, val_dl, test_dl = get_triples_loader(args.dataset_path, w2i, i2w,
+                                            batch_size=128, shuffle=True)
 
     for i_batch, sample_batched in enumerate(train_dl):
         print(i_batch, sample_batched[0].size(),
