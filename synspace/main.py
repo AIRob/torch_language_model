@@ -45,11 +45,12 @@ def prepare_for_model(batch, args):
     return batch
 
 
-def train(model, optimizer, args, train_loader, val_loader):
+def train(model, optimizer, args, train_loader, val_loader, experiment_address):
     nb_epoch = args.nb_epoch
     distance = get_distance(args.distance)
 
     val_loss = []
+
     curr_iter = 0
     for epoch in range(1, nb_epoch+1):
         print('Fitting epoch %d' % epoch, file=sys.stderr)
@@ -93,6 +94,12 @@ def train(model, optimizer, args, train_loader, val_loader):
 
                 val_loss.append(curr_val_loss)
 
+            if curr_iter % args.save_every == 0:
+                dump_model({'model': model.state_dict()},
+                           experiment_address,
+                           'chkpnt_{}.pth.tar'.format(curr_iter),
+                           False)
+
     return val_loss
 
 # def test(model, optimizer, nlp, args):
@@ -108,32 +115,94 @@ def train(model, optimizer, args, train_loader, val_loader):
 #     test_loss /= len(test_loader.dataset)
 #     print('====> Test set loss: {:.4f}'.format(test_loss))
 
-def dump_model(model, filename):
-    torch.save(model, filename)
 
-def load_model(filename):
-    # if not os.path.isfile(filename):
-    #     print("=> no checkpoint found at {}".format(filename))
-    #     return
-    pass
+def dump_model(info, file_path, file_name, is_best):
+    # Call this functions with something like:
+    #
+    # dump_model({
+    #     'model': model.state_dict(),
+    # }, 'some_file_name.tar', False)
+    #
+    file = os.path.join(file_path, file_name)
+    torch.save(info, file)
+    if (is_best):
+        best_file = os.path.join(file_path, 'best.pth.tar')
+        torch.save(info, best_file)
 
 
-def initialize_vocabulary(dataset_path):
+def load_model(filename, model):
+    if not os.path.isfile(filename):
+        print("=> no checkpoint found at {}".format(filename))
+        return None
+    checkpoint = torch.load(filename)
+    model.load_state_dict(checkpoint['model'])
+    return model
+
+
+def initialize_vocabulary(data_path, dataset_name):
+    dataset_path = os.path.join(data_path, 'datasets', dataset_name)
     vocab_file = os.path.join(dataset_path, 'vocab.txt')
     w2i, i2w = load_vocabulary(vocab_file)
     w2v = preload_w2v(w2i)
     return w2i, i2w, w2v
 
 
+def initialize_model(w2i, i2w, w2v):
+    # "Builds" the model and sends it to the GPU
+    model = LanguageModel(w2i, i2w, w2v)
+    if args.cuda:
+        model.cuda()
+    return model
+
+
+def initialize_or_load_experiment(args, w2i, i2w, w2v):
+    experiments_path = os.path.join(args.data_path, 'experiments',
+                                   args.dataset_name)
+    experiment_name = '{}_{}_{}neu_{}drop_{}reg_{}'.format(
+                            args.layers, args.layer_type, args.layer_size,
+                            args.dropout, args.l2_reg, args.similarity)
+    experiment_address = os.path.join(experiments_path, experiment_name)
+    experiment_best_file = os.path.join(experiment_address, 'best.pth.tar')
+
+    if os.path.exists(experiment_best_file):
+        if args.mode == 'train':
+            print("=> ERROR: No support for resuming training.")
+            print("      Experiment exists. Aborting...")
+            sys.exit()
+        model = LanguageModel(w2i, i2w, w2v)
+        model = load_model(experiment_best_file, model)
+        model.eval()
+    else:
+        if not os.path.exists(experiment_address):
+            os.makedirs(experiment_address)
+        model = initialize_model(w2i, i2w, w2v)
+    return model, experiment_address
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description='PyTorch language model')
-    parser.add_argument('dataset_path', type=str,
-                        help='Path to dataset to be processed.')
+    parser.add_argument('dataset_name', type=str,
+                        help='Name of the dataset to be processed.')
+    parser.add_argument('--data_path', type=str, default='../data',
+                        help='Path to experiment data.')
     parser.add_argument('--mode', type=str, default='train',
                         help='Mode of execution: `train` or `test`.')
     parser.add_argument('--margin', type=float, default=0.5,
                         help='How close two words need to be to be fully '
                              'taken as synonyms.')
+
+    parser.add_argument('--layers', type=int,
+                        help='How many layers will the model have?')
+    parser.add_argument('--layer_type', type=str,
+                        help='Either "sigm" or "relu".')
+    parser.add_argument('--layer_size', type=int,
+                        help='How many neurons in each layer?')
+    parser.add_argument('--dropout', type=float,
+                        help='How much dropout in each layer?')
+    parser.add_argument('--l2_reg', type=float,
+                        help='How much L2 regulation?')
+    parser.add_argument('--similarity', type=str, default='euclidean',
+                        help='Similarity metric to be used for the margin loss')
 
     parser.add_argument('--batch_size', type=int, default=128, metavar='N',
                         help='input batch size for training (default: 128)')
@@ -142,8 +211,6 @@ def parse_args():
     parser.add_argument('--language', type=str, default='en',
                         help='Language code to be used. Default: "en";'
                              ' Accepted: "en", "de".')
-    parser.add_argument('--distance', type=str, default='euclidean',
-                        help='Distance metric to be used for the margin loss')
     parser.add_argument('--validation_split', type=float, default=0.05,
                         help='how much of the training set should be used for '
                              'validation')
@@ -172,28 +239,22 @@ def main(args):
     if args.cuda:
         torch.cuda.manual_seed(args.seed)
 
-    w2i, i2w, w2v = initialize_vocabulary(args.dataset_path)
+    w2i, i2w, w2v = initialize_vocabulary(args.data_path, args.dataset_name)
 
     train_loader, val_loader, test_loader = get_triples_loader(
-                                args.dataset_path, w2i, i2w,
+                                args.data_path, args.dataset_name, w2i, i2w,
                                 args.batch_size, args.shuffle,
                                 validation_split=args.validation_split)
 
-    #for i_batch, sample_batched in enumerate(train_loader):
-    #    print(i_batch, sample_batched[0].size(),
-    #          sample_batched[1].size(), sample_batched[2].size())
-
-    # "Builds" the model and sends it to the GPU
-    model = LanguageModel(w2i, i2w, w2v)
-    if args.cuda:
-        model.cuda()
+    model, experiment_address = initialize_or_load_experiment(args, w2i, i2w, w2v)
 
     # Defines a new optimizer
     parameters = filter(lambda p: p.requires_grad, model.parameters())
     optimizer = optim.Adam(parameters, lr=1e-3)
 
     if args.mode == 'train':
-        train(model, optimizer, args, train_loader, val_loader)
+        train(model, optimizer, args,
+              train_loader, val_loader, experiment_address)
     elif args.mode == 'test':
         #test(model, optimizer, args, test_loader)
         pass

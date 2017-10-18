@@ -48,13 +48,12 @@ class WordnetTriples(Dataset):
 
         return sample
 
-def get_triples_loader(dataset_path, w2i, i2w,
+def get_triples_loader(data_path, dataset_name, w2i, i2w,
                        batch_size, shuffle,
                        num_workers=4,
                        validation_split=0.05):
-    train_file = os.path.join(dataset_path, 'train.pkl')
-    test_file  = os.path.join(dataset_path, 'test.pkl')
-    vocab_file = os.path.join(dataset_path, 'vocab.txt')
+    train_file = os.path.join(data_path, 'datasets', dataset_name, 'train.pkl')
+    test_file = os.path.join(data_path, 'datasets', dataset_name, 'test.pkl')
 
     train_and_val_triples = pickle.load(open(train_file, 'rb'))
 
