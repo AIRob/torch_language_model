@@ -17,22 +17,22 @@ from synspace.model import LanguageModel
 from synspace.wordnet_triples import get_triples_loader
 
 
-def euclidean_distance(w1, w2):
+def euclidean_similarity(w1, w2):
     return ((w1 - w2) ** 2).sum(dim=1)
 
-def get_distance(distance_str):
+def get_similarity(similarity_str):
     return {
-        'euclidean': euclidean_distance
-    }.get(distance_str)
+        'euclidean': euclidean_similarity
+    }.get(similarity_str)
 
-def loss_function(x, distance, args):
+def loss_function(x, similarity, args):
     target_word, synonym, antonym = x
 
-    # Calculate the distance between all elements
-    good_distance = distance(target_word, synonym)
-    bad_distance  = distance(target_word, antonym)
+    # Calculate the similarity between all elements
+    good_similarity = similarity(target_word, synonym)
+    bad_similarity  = similarity(target_word, antonym)
 
-    loss = F.relu(args.margin - good_distance + bad_distance)
+    loss = F.relu(args.margin - good_similarity + bad_similarity)
     return loss.sum()
 
 
@@ -47,9 +47,10 @@ def prepare_for_model(batch, args):
 
 def train(model, optimizer, args, train_loader, val_loader, experiment_address):
     nb_epoch = args.nb_epoch
-    distance = get_distance(args.distance)
+    similarity = get_similarity(args.similarity)
 
     val_loss = []
+    best_loss = float('inf')
 
     curr_iter = 0
     for epoch in range(1, nb_epoch+1):
@@ -60,7 +61,7 @@ def train(model, optimizer, args, train_loader, val_loader, experiment_address):
             data = prepare_for_model(sample_batched, args)
             x = model(data)
 
-            loss = loss_function(x, distance, args)
+            loss = loss_function(x, similarity, args)
             loss.backward()
             train_loss += loss.data[0]
             optimizer.step()
@@ -81,7 +82,7 @@ def train(model, optimizer, args, train_loader, val_loader, experiment_address):
                     data = prepare_for_model(val_sample_batched, args)
                     x = model(data)
 
-                    loss = loss_function(x, distance, args)
+                    loss = loss_function(x, similarity, args)
                     curr_val_loss += loss.data[0]
 
                     print('Validation: {} [{}/{} ({:.0f}%)]\tBatch Loss: {:.6f}'.format(
@@ -94,11 +95,22 @@ def train(model, optimizer, args, train_loader, val_loader, experiment_address):
 
                 val_loss.append(curr_val_loss)
 
+                is_best = True if val_loss[-1] < best_loss else False
+                if is_best:
+                    # If I found a good model, then I totally want to dump it
+                    best_loss = val_loss[-1]
+                    dump_model({'model': model.state_dict(),
+                                'iter': curr_iter},
+                               experiment_address,
+                               'chkpnt_{}.pth.tar'.format(curr_iter),
+                               is_best=is_best)
+
             if curr_iter % args.save_every == 0:
-                dump_model({'model': model.state_dict()},
+                dump_model({'model': model.state_dict(),
+                            'iter': curr_iter},
                            experiment_address,
                            'chkpnt_{}.pth.tar'.format(curr_iter),
-                           False)
+                           is_best=False)
 
     return val_loss
 
@@ -120,6 +132,7 @@ def dump_model(info, file_path, file_name, is_best):
     # Call this functions with something like:
     #
     # dump_model({
+    #     'iter' : curr_iter,
     #     'model': model.state_dict(),
     # }, 'some_file_name.tar', False)
     #
@@ -128,6 +141,9 @@ def dump_model(info, file_path, file_name, is_best):
     if (is_best):
         best_file = os.path.join(file_path, 'best.pth.tar')
         torch.save(info, best_file)
+        best_list_file = os.path.join(file_path, 'best_list.txt')
+        with open(best_list_file, 'a') as f:
+            f.write('{}\t{}\n'.format(file_name, info['iter']))
 
 
 def load_model(filename, model):
@@ -191,18 +207,31 @@ def parse_args():
                         help='How close two words need to be to be fully '
                              'taken as synonyms.')
 
-    parser.add_argument('--layers', type=int,
+    parser.add_argument('--layers', type=int, default=2,
                         help='How many layers will the model have?')
-    parser.add_argument('--layer_type', type=str,
+    parser.add_argument('--layer_type', type=str, default='relu',
                         help='Either "sigm" or "relu".')
-    parser.add_argument('--layer_size', type=int,
+    parser.add_argument('--layer_size', type=int, default=64,
                         help='How many neurons in each layer?')
-    parser.add_argument('--dropout', type=float,
+    parser.add_argument('--dropout', type=float, default=0.9,
                         help='How much dropout in each layer?')
-    parser.add_argument('--l2_reg', type=float,
+    parser.add_argument('--l2_reg', type=float, default=0,
                         help='How much L2 regulation?')
     parser.add_argument('--similarity', type=str, default='euclidean',
                         help='Similarity metric to be used for the margin loss')
+
+    # parser.add_argument('--layers', type=int,
+    #                     help='How many layers will the model have?')
+    # parser.add_argument('--layer_type', type=str,
+    #                     help='Either "sigm" or "relu".')
+    # parser.add_argument('--layer_size', type=int,
+    #                     help='How many neurons in each layer?')
+    # parser.add_argument('--dropout', type=float,
+    #                     help='How much dropout in each layer?')
+    # parser.add_argument('--l2_reg', type=float,
+    #                     help='How much L2 regulation?')
+    # parser.add_argument('--similarity', type=str,
+    #                     help='Similarity metric to be used for the margin loss')
 
     parser.add_argument('--batch_size', type=int, default=128, metavar='N',
                         help='input batch size for training (default: 128)')
@@ -219,9 +248,9 @@ def parse_args():
 
     parser.add_argument('--log_every', type=int, default=1,
                         help='After how many iterations should we print state?')
-    parser.add_argument('--validate_every', type=int, default=500,
+    parser.add_argument('--validate_every', type=int, default=37,
                         help='After how many iterations should we run validation?')
-    parser.add_argument('--save_every', type=int, default=1,
+    parser.add_argument('--save_every', type=int, default=50,
                         help='After how many iterations should we save state?')
 
     parser.add_argument('--seed', type=int, default=1, metavar='S',
