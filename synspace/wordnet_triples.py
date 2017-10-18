@@ -40,7 +40,10 @@ class WordnetTriples(Dataset):
         # sample = {'target_word': self.w2i[sample[0]],
         #           'synonym': self.w2i[sample[1]],
         #           'antonym': self.w2i[sample[2]] }
-        sample = (self.w2i[sample[0]], self.w2i[sample[1]], self.w2i[sample[2]])
+        target_word = self.w2i.get(sample[0], 3)
+        synonym = self.w2i.get(sample[1], 3)
+        antonym = self.w2i.get(sample[2], 3)
+        sample = (target_word, synonym, antonym)
 
         # Maybe transform further the value
         if self.transform:

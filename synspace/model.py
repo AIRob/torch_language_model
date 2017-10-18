@@ -25,13 +25,20 @@ class LanguageModel(nn.Module):
         # self.fc2 = nn.Linear(128, 128)
         # self.fc3 = nn.Linear(128, 128)
 
+    def predict(self, w_batched):
+        return self.forward_once(w_batched)
+
+    def forward_once(self, x):
+        return self.embedding(x)
+
     def forward(self, x):
+        # Notice that each of these elements is probably batched
         target_word, synonym, antonym = x
 
         # Run the rest of the network in each one of them
-        target_word = self.embedding(target_word)
-        synonym = self.embedding(synonym)
-        antonym = self.embedding(antonym)
+        target_word = self.forward_once(target_word)
+        synonym = self.forward_once(synonym)
+        antonym = self.forward_once(antonym)
 
         # Probably something more complicated...
 

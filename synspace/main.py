@@ -6,12 +6,12 @@ import torch.optim as optim
 from torch.autograd import Variable
 import torch.nn.functional as F
 
-import spacy
 
 from synspace.vocabulary_utils import load_vocabulary, preload_w2v
 
 import os
 import sys
+import json
 
 from synspace.model import LanguageModel
 from synspace.wordnet_triples import get_triples_loader
@@ -46,6 +46,7 @@ def prepare_for_model(batch, args):
 
 
 def train(model, optimizer, args, train_loader, val_loader, experiment_address):
+    model.train()
     nb_epoch = args.nb_epoch
     similarity = get_similarity(args.similarity)
 
@@ -114,18 +115,46 @@ def train(model, optimizer, args, train_loader, val_loader, experiment_address):
 
     return val_loss
 
-# def test(model, optimizer, nlp, args):
-#     model.eval()
-#     test_loss = 0
-#     for data, _ in test_loader:
-#         if args.cuda:
-#             data = data.cuda()
-#         data = Variable(data, volatile=True)
-#         recon_batch, mu, logvar = model(data)
-#         test_loss += loss_function(recon_batch, data, mu, logvar).data[0]
-#
-#     test_loss /= len(test_loader.dataset)
-#     print('====> Test set loss: {:.4f}'.format(test_loss))
+def test(model, args, test_loader, experiment_address):
+    model.eval()
+    similarity = get_similarity(args.similarity)
+
+    test_loss = 0
+    for batch_idx, sample_batched in enumerate(test_loader):
+        data = prepare_for_model(sample_batched, args)
+        x = model(data)
+
+        # This is for getting a loss comparable to that of the validation set
+        loss = loss_function(x, similarity, args)
+        test_loss += loss.data[0]
+
+        # This is for calculating some Pearson Correlation afterwards
+        # w, s, a = model.predict(x[0]), model.predict(x[1]), model.predict(x[2])
+
+    test_loss /= len(test_loader.dataset)
+    print('Test set loss: {:.4f}'.format(test_loss))
+
+
+def dump_experiment_info(args, experiment_address):
+    info = {
+        'dataset_name': args.dataset_name,
+        'margin': args.margin,
+        'layers': args.layers,
+        'layer_type': args.layer_type,
+        'layer_size': args.layer_size,
+        'dropout': args.dropout,
+        'l2_reg': args.l2_reg,
+        'similarity': args.similarity,
+        'batch_size': args.batch_size,
+        'language': args.language,
+        'validation_split': args.validation_split,
+        'shuffle': args.shuffle,
+        'seed': args.seed
+    }
+
+    file_name = os.path.join(experiment_address, 'model_info.json')
+    with open(file_name, 'w') as f:
+        json.dump(info, f, indent=4)
 
 
 def dump_model(info, file_path, file_name, is_best):
@@ -146,12 +175,14 @@ def dump_model(info, file_path, file_name, is_best):
             f.write('{}\t{}\n'.format(file_name, info['iter']))
 
 
-def load_model(filename, model):
+def load_model(filename, model, args):
     if not os.path.isfile(filename):
         print("=> no checkpoint found at {}".format(filename))
         return None
     checkpoint = torch.load(filename)
     model.load_state_dict(checkpoint['model'])
+    if args.cuda:
+        model.cuda()
     return model
 
 
@@ -186,8 +217,7 @@ def initialize_or_load_experiment(args, w2i, i2w, w2v):
             print("      Experiment exists. Aborting...")
             sys.exit()
         model = LanguageModel(w2i, i2w, w2v)
-        model = load_model(experiment_best_file, model)
-        model.eval()
+        model = load_model(experiment_best_file, model, args)
     else:
         if not os.path.exists(experiment_address):
             os.makedirs(experiment_address)
@@ -277,16 +307,15 @@ def main(args):
 
     model, experiment_address = initialize_or_load_experiment(args, w2i, i2w, w2v)
 
-    # Defines a new optimizer
-    parameters = filter(lambda p: p.requires_grad, model.parameters())
-    optimizer = optim.Adam(parameters, lr=1e-3)
+    dump_experiment_info(args, experiment_address)
 
     if args.mode == 'train':
+        parameters = filter(lambda p: p.requires_grad, model.parameters())
+        optimizer = optim.Adam(parameters, lr=1e-3)
         train(model, optimizer, args,
               train_loader, val_loader, experiment_address)
     elif args.mode == 'test':
-        #test(model, optimizer, args, test_loader)
-        pass
+        test(model, args, test_loader, experiment_address)
 
 
 if __name__ == '__main__':
